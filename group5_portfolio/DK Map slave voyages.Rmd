@@ -1,0 +1,300 @@
+---
+title: "DK Map slavevoyages"
+author: "Frida Lützow Kirk"
+date: "2026-05-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+options(repos = c(CRAN = "https://cloud.r-project.org"))
+
+```
+
+----
+# Map of the showing the Danish Trans-Atlantic slave trade
+
+
+First, we install the packages necessary for creating the map
+```{r packages}
+
+install.packages("leaflet")
+install.packages("tidyverse")
+##For this type of project, i will make a html - "htmltools" is the one working for this program
+install.packages("htmltools")
+install.packages("dplyr")
+```
+
+Then we have to unpack everything in the library 
+```{r library}
+library(leaflet)
+library(tidyverse)
+library(htmltools)
+library(dplyr)
+
+```
+
+
+Here i define the csv of the data on the danish slave voyages
+```{r data}
+danish_slave_trade <- read_csv("taden.csv")
+
+danish_slave_trade
+```
+
+To decide what coordinates to show on our map, we are looking at which ports were the most frequent for disimbarkment for the captives
+
+```{r finalports}
+finalports <- danish_slave_trade %>% 
+  group_by(`Imputed principal port of captive disembarkation`) %>% 
+  count()
+
+finalports
+```
+
+The most traveled to port is None - None is NA
+We will remove None from our list
+
+```{r finalports_nonone}
+finalports_no_none <- finalports %>% 
+  filter(`Imputed principal port of captive disembarkation`!="None")
+
+```
+
+Additionally on the map, we want to see the starting point for the vessel, and the place where the enslaved were purchased
+Repeating the processes from above
+
+```{r vesselstarting_point}
+vessel_starting_point <- danish_slave_trade %>% 
+  group_by(`Imputed Place where vessel's voyage began`) %>% 
+  count()
+
+vessel_starting_point
+
+vessel_starting_point_no_none <- vessel_starting_point %>% 
+  filter(`Imputed Place where vessel's voyage began` !="None")
+
+```
+
+Now we want a overview over where most people were purchaset 
+```{r purchaseplace}
+
+purchase_place <- danish_slave_trade %>% 
+  group_by(`Imputed principal place of captive purchase`) %>% 
+  count()
+
+purchase_place 
+
+purchase_place_no_none <- purchase_place %>% 
+  filter(`Imputed principal place of captive purchase`!="None")
+
+purchase_place_no_none
+
+```
+
+We are interested in seeing the top 3 locations for each of the lists
+this is visible in the counted lists
+
+In a google sheet we have collected the cordinates for these 9 places for ploting them into a leflet 
+
+libraries needed for the map with google sheet coordinators
+
+```{r packages2}
+install.packages("leaflet")
+
+install.packages("googlesheets4")
+
+
+```
+
+```{r libraryunpack}
+
+library(tidyverse)
+library(googlesheets4)
+library(leaflet)
+
+```
+
+First we are making the base map
+Here we need to open the providers for the map, we use Esri
+
+```{r basemap}
+leaflet() %>% 
+  addTiles() %>% 
+  setView( lng = 2.34, lat = 48.85, zoom = 5 ) %>%  
+  addProviderTiles("Esri.WorldPhysical", group = "Physical") %>%  
+  addProviderTiles("Esri.WorldImagery", group = "Aerial") %>%  
+  addProviderTiles("MtbMap", group = "Geo") %>%               
+  
+  addLayersControl(                                 
+    baseGroups = c("Geo","Aerial", "Physical"),
+    options = layersControlOptions(collapsed = F)) 
+
+esri <- grep("^Esri", providers, value = TRUE)
+esri
+
+base_map <- leaflet() %>% 
+  setView(-20.770465174792065,19.10732583182444, zoom = 3) 
+for (provider in esri) {
+  base_map <- base_map %>% addProviderTiles(provider, group = provider)
+}
+base_map
+
+
+dk_slave_voyages <- base_map %>%
+  addProviderTiles("Esri.NatGeoWorldMap", group = "Aerial") %>% 
+  addLayersControl(baseGroups = names(esri),
+                   options = layersControlOptions(collapsed = TRUE)) %>%
+  addMiniMap(tiles = esri[[1]], toggleDisplay = TRUE,
+             position = "bottomright") %>%
+  addMeasure(
+    position = "bottomleft",
+    primaryLengthUnit = "meters",
+    primaryAreaUnit = "sqmeters",
+    activeColor = "#3D535D",
+    completedColor = "#7D4479") %>% 
+  htmlwidgets::onRender("
+                        function(el, x) {
+                        var myMap = this;
+                        myMap.on('baselayerchange',
+                        function (e) {
+                        myMap.minimap.changeLayer(L.tileLayer.provider(e.name));
+                        })
+                        }") %>% 
+  addControl("", position = "topright")
+
+dk_slave_voyages
+
+library(htmlwidgets)
+
+saveWidget(dk_slave_voyages, "baselayer_slavetrademap.html", selfcontained = TRUE)
+
+
+```
+
+Here we read in the Google sheet and select the Starting Port
+
+In case there are difficulties with the read_sheet() function (it is erroring out), 
+Run the following function:
+gs4_deauth() 
+And then rerun the read_sheet() function below
+
+```{r deauth}
+gs4_deauth()
+```
+
+```{r googleshet}
+
+ship_starting_port <- read_sheet("https://docs.google.com/spreadsheets/d/1DrrjkuGPmcmtlis8zEXERD7Y7SZ-B0UxQHwLxZARgfE/edit?usp=sharing",
+                     col_types = "cccnnc",   # we are working with 6 collumns c=is text n=numbers
+                     range = "SP")  # here i have select the correct worksheet name
+
+glimpse(ship_starting_port)
+
+ship_starting_port %>% 
+  filter(!is.na(Longitude)) %>% 
+  filter(!is.na(Latitude))
+
+
+```
+
+Here we select the worksheet for the Captive Purchase
+
+```{r googlesheet2}
+captive_purchase_places <- read_sheet("https://docs.google.com/spreadsheets/d/1DrrjkuGPmcmtlis8zEXERD7Y7SZ-B0UxQHwLxZARgfE/edit?usp=sharing",
+                                 col_types = "cccnnc",  
+                                 range = "CP") 
+
+glimpse(captive_purchase_places)
+
+captive_purchase_places %>% 
+  filter(!is.na(Longitude)) %>% 
+  filter(!is.na(Latitude))
+
+```
+
+Here we select the worksheet for Captive Dismbarkment 
+
+```{r googlesheet3}
+captive_final_ports <- read_sheet("https://docs.google.com/spreadsheets/d/1DrrjkuGPmcmtlis8zEXERD7Y7SZ-B0UxQHwLxZARgfE/edit?usp=sharing",
+                                 col_types = "cccnnc",  
+                                 range = "CD")  
+
+glimpse(captive_final_ports)
+
+captive_final_ports %>% 
+  filter(!is.na(Longitude)) %>% 
+  filter(!is.na(Latitude))
+
+```
+
+# Final Map
+Now we are testing to see if the markers show everything we want to show, before making the final map
+Testing it with the CD worksheet
+
+```{r finalmap}
+test_cd<- leaflet() %>% 
+  addTiles() %>% 
+  addMarkers(lng = captive_final_ports$Longitude, 
+             lat = captive_final_ports$Latitude,
+             popup = paste(captive_final_ports$Placename,"<br>",captive_final_ports$Type,"<br>",captive_final_ports$Description))
+
+test_cd
+
+
+
+
+final_map <- dk_slave_voyages%>%
+  addCircleMarkers(
+    data = ship_starting_port,
+    lng = ship_starting_port$Longitude, lat = ship_starting_port$Latitude,
+    color = "blue",
+    radius = 6,
+    group = "ship_starting_port",
+    popup = paste(ship_starting_port$Placename,"<br>",ship_starting_port$Type,"<br>",ship_starting_port$Description)
+  ) %>%
+  
+  addCircleMarkers(
+    data = captive_purchase_places,
+    lng = captive_purchase_places$Longitude, lat = captive_purchase_places$Latitude,
+    color = "red",
+    radius = 6,
+    group = "captive_purchase_places",
+    popup = paste(captive_purchase_places$Placename,"<br>",captive_purchase_places$Type,"<br>",captive_purchase_places$Description)
+  ) %>%
+  
+  addCircleMarkers(
+    data = captive_final_ports,
+    lng = captive_final_ports$Longitude, lat = captive_final_ports$Latitude,
+    color = "hotpink",
+    radius = 6,
+    group = "captive_final_ports", 
+    popup = paste(captive_final_ports$Placename,"<br>",captive_final_ports$Type,"<br>",captive_final_ports$Description)
+  ) 
+  
+
+final_map
+
+```
+
+Now each dot on the map has a color
+The blue dots represent ports where vessels started their voyages
+The red dots represent Ports and Citys where enslaved people were bought
+The green dots represent the final ports where the 
+
+
+In the end, we want to save the html of the map
+
+```{r map}
+library(htmlwidgets)
+
+saveWidget(final_map, "dkmap_slavetrade.html", selfcontained = TRUE)
+
+```
+Now we have a map showing the Trans Atlantic Slave trade from the Danish perspective
+
+
+```{r pressure, echo=FALSE}
+
+```
