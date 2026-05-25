@@ -1,0 +1,123 @@
+---
+title: "Danish slave trade development"
+Author: "Mia Bundgaard"
+output: html_document
+date: "2026-05-21"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+---
+First I activate the libraries
+```{r Activating libraries}
+library(tidyverse)
+library(gganimate)
+library(gifski)
+library(dplyr)
+```
+
+
+Installing and renaming the data
+```{r data}
+read_csv("taden.csv")
+danish_slave_trade <- read_csv("taden.csv")
+
+
+danish_slave_trade
+show_col_types = FALSE
+```
+
+Now I use head() and unique() to see if the data is correct and remove dublicants
+```{r correcting data}
+head(danish_slave_trade)
+unique(danish_slave_trade)
+
+theme_set(theme_bw(base_family = "times new roman"))
+options(scipen=999)
+view(danish_slave_trade)
+
+unique(danish_slave_trade$`Name of vessel`)
+unique(danish_slave_trade$`Year arrived with captives`)
+
+danish_slave_trade <- danish_slave_trade %>%
+  rename(
+    vessel = `Name of vessel`,
+    year = `Year arrived with captives`
+  )
+```
+
+
+Converting the data into numeric and removing NA's
+```{r datafilter}
+danish_slave_trade <- danish_slave_trade %>%
+  mutate(year = as.numeric(year)) %>%
+  filter(!is.na(year))
+
+data_filtered <- danish_slave_trade %>%
+  filter(year >= 1606, year <= 1805)
+
+ships_per_year <- danish_slave_trade %>%
+  group_by(year) %>%
+  summarise(ships = n())
+
+ships_per_year
+```
+
+Graph - Danish slave trade development 
+```{r Danish slave trade development}
+ggplot(ships_per_year, aes(x = year, y = ships)) +
+  geom_line(color = "lightpink") + 
+  scale_x_continuous(breaks = seq(min(ships_per_year$year),
+                                  max(ships_per_year$year),
+                                  by = 50)) +
+  labs(
+    title = "Danish slave trade development",
+    x = "Year",
+    y = "Number of ships"
+  )
+```
+
+
+Animation - Danish slave trade development 
+```{r Animation}
+anim <- ggplot(ships_per_year, aes(x = year, y = ships)) +
+  geom_line(color = "lightpink") +
+  geom_point() +
+  labs(
+    title = "Year {round(frame_along)}",
+    x = "Year",
+    y = "Number of ships"
+  ) +
+  transition_reveal(year)
+
+anim
+
+```
+Graph - Slaves dying during crossing over the years
+```{r Deaths}
+
+death <- danish_slave_trade %>%
+  select(year, `Total disembarked (IMP)`, `Total embarked (IMP)`) %>%
+  mutate(death = `Total embarked (IMP)` - `Total disembarked (IMP)`)
+
+ggplot(death, aes(
+  x = year,
+  y = death
+)) +
+  geom_line(color = "lightpink", linewidth = 1) +
+  labs(
+    title = "Deaths under the Danish slave trade",
+    x = "Year",
+    y = "Number of people who died during crossing"
+  ) +
+  theme_classic()+
+  theme_set(theme_bw(base_family = "times new roman"))+
+  scale_x_continuous(breaks = seq(1600, 1860, by = 25))+
+  scale_y_continuous(breaks = seq(0, 859, by = 50))
+
+
+```
+
+
