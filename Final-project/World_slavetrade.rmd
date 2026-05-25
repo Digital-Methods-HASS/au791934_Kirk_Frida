@@ -1,0 +1,235 @@
+---
+title: "Finalproject 2"
+output: html_document
+date: "2026-05-21"
+Output: html_file
+---
+
+```{r library}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(gganimate)
+library(gifski)
+library(av)
+library(dplyr)
+library(rmarkdown)
+```
+
+```{r code}
+taver <- read_csv("Desktop/Digitale arkiver og metode/DAM1/data/taver.csv")
+head(taver)
+
+svworld <- taver
+str(svworld)
+unique(svworld$`Year arrived with captives`)
+unique(svworld$`Flag of vessel (IMP)`)
+head(svworld)
+
+#At first it's important to make sure that there a no 0 in our dataset
+svworld_no_0 <- svworld %>%
+  filter(`Flag of vessel (IMP)` != "0")
+
+
+#Now we define what the data is and change the names.
+
+vessel_data <- svworld_no_0 %>%
+  select(year = `Year arrived with captives`,country = `Flag of vessel (IMP)`,vessel = `Name of vessel`,`Total disembarked (IMP)`,`Total embarked (IMP)`) %>%
+  mutate(death = `Total embarked (IMP)` - `Total disembarked (IMP)`) %>%
+  group_by(year, country) %>%
+  summarise(vessels = n(),death = sum(death),.groups = "drop")
+
+vessel_data
+```
+
+```{r vessels}
+#At first we wanted to look at how many vessels each country had during the time period we are looking at
+
+#At first we are making a geom_point
+theme_set(theme_bw(base_family = "times new roman"))
+options(scipen = 999)
+ggplot(subset(vessel_data, year == 1700),
+       aes(vessels, country, size = vessels)) +
+  geom_point(aes(color = country)) +
+  scale_x_log10() +
+  ggtitle("Slave vessels 1700") +
+  labs(x = "Number of vessels", y = "Country")
+
+#We have to make the animation
+
+anim <- ggplot(vessel_data, aes(vessels, country, size = vessels)) +
+  geom_point(aes(color = country)) +
+  scale_x_log10() +
+  ggtitle("Year:{closest_state}") +
+  labs(x = "number of vessels", y = "country") +
+  transition_states(year, transition_length = 1, state_length = 1)
+anim
+
+animate(anim, nframes = 100, duration = 30)
+```
+
+```{r vessels2}
+#Know we make a geom_line plot
+
+vessel_data %>%
+  count(year, vessels)
+
+ggplot(data = vessel_data, aes(x = year, y = vessels, color = country)) +
+  geom_line() +
+  ggtitle("Vessels pr year")
+
+
+anim3 <- ggplot(vessel_data, aes(x = year, y = vessels, color = country)) +
+  geom_line() +
+  transition_reveal(year) +
+  ggtitle("Year:{round(frame_along)}") +
+  labs(x = "year", y = "number of vessels")
+
+anim3
+
+animate(anim3, nframes = 100, duration = 30)
+```
+
+```{r vessels3}
+#From these two graph we want to look closer at the years where there are a lot of vessels. We are doing that with a Barplot
+
+vessel_data %>%
+  filter(year == 1700) %>%
+  ggplot(aes(x = country, y = vessels)) +
+  geom_bar(aes(fill = country), stat = "identity") +
+  geom_text(aes(label = vessels), position = position_stack(vjust = 0.5)) +
+  ggtitle("Number of ships 1700")
+
+
+vessel_data %>%
+  filter(year == 1805) %>%
+  ggplot(aes(x = country, y = vessels)) +
+  geom_bar(aes(fill = country), stat = "identity") +
+  geom_text(aes(label = vessels), position = position_stack(vjust = 0.5)) +
+  ggtitle("Number of ships 1805")
+
+
+vessel_data %>%
+  filter(year == 1725) %>%
+  ggplot(aes(x = country, y = vessels)) +
+  geom_bar(aes(fill = country), stat = "identity") +
+  geom_text(aes(label = vessels), position = position_stack(vjust = 0.5)) +
+  ggtitle("Number of ships 1725")
+
+```
+
+```{r vessels4}
+#A Barplot that shows all vessels for every year
+vessel_data %>%
+  group_by(country) %>%
+  summarise(total_vessels = sum(vessels)) %>%
+  ggplot(aes(x = reorder(country, -total_vessels), y = total_vessels)) +
+  geom_bar(aes(fill = country), stat = "identity") +
+  ggtitle("Total vessels pr country") +
+  geom_text(aes(label = total_vessels), vjust = -0.5) +
+  labs(x = "Country", y = "Number of ships")
+
+#Now we want to look at how many slaves died during the voyages.
+
+#Define what data we want to look at
+svworld_no_0 %>%
+  select(`Total disembarked (IMP)`, `Total embarked (IMP)`) %>%
+  mutate(death = `Total embarked (IMP)` - `Total disembarked (IMP)`)
+
+#Here we can see in the correct order from most death to least death pr. country.
+svworld_no_0 %>%
+  select(`Flag of vessel (IMP)`,
+         `Total disembarked (IMP)`,
+         `Total embarked (IMP)`) %>%
+  mutate(death = `Total embarked (IMP)` - `Total disembarked (IMP)`) %>%
+  group_by(`Flag of vessel (IMP)`) %>%
+  summarise(total_death = sum(death)) %>%
+  arrange(desc(total_death))
+```
+
+```{r death}
+#A Barplot that shows the total death for all countries
+svworld_no_0 %>%
+  select(`Flag of vessel (IMP)`,
+         `Total disembarked (IMP)`,
+         `Total embarked (IMP)`) %>%
+  mutate(death = `Total embarked (IMP)` - `Total disembarked (IMP)`) %>%
+  group_by(`Flag of vessel (IMP)`) %>%
+  summarise(total_death = sum(death)) %>%
+  arrange(desc(total_death)) %>%
+  ggplot(aes(x = reorder(`Flag of vessel (IMP)`, -total_death),y = total_death)) +
+  geom_bar(stat = "identity", aes(fill = `Flag of vessel (IMP)`)) +
+  geom_text(aes(label = total_death), vjust = -0.5) +
+  ggtitle("Total Deaths by Country") +
+  labs(x = "Country", y = "Total Deaths")
+```
+
+```{r death2}
+#Now were making a Barplot and a geomline so that the results can be visualized. The specific years come from our results in our vessel data.
+vessel_data %>%
+  filter(year == 1700) %>%
+  ggplot(aes(x = country, y = death)) +
+  geom_bar(aes(fill = country), stat = "identity") +
+  geom_text(aes(label = death), vjust = -0.5) +
+  ggtitle("Number of death 1700")
+
+vessel_data %>%
+  filter(year == 1705) %>%
+  ggplot(aes(x = country, y = death)) +
+  geom_bar(aes(fill = country), stat = "identity") +
+  geom_text(aes(label = death), vjust = -0.5) +
+  ggtitle("Number of death 1705")
+
+vessel_data %>%
+  filter(year == 1776) %>%
+  ggplot(aes(x = country, y = death)) +
+  geom_bar(aes(fill = country), stat = "identity") +
+  geom_text(aes(label = death), vjust = -0.5) +
+  ggtitle("Number of death 1776")
+
+vessel_data %>%
+  filter(year == 1800) %>%
+  ggplot(aes(x = country, y = death)) +
+  geom_bar(aes(fill = country), stat = "identity") +
+  geom_text(aes(label = death), vjust = -0.5) +
+  ggtitle("Number of death 1800")
+
+vessel_data %>%
+  filter(year == 1802) %>%
+  ggplot(aes(x = country, y = death)) +
+  geom_bar(aes(fill = country), stat = "identity") +
+  geom_text(aes(label = death), vjust = -0.5) +
+  ggtitle("Number of death 1802")
+
+
+vessel_data %>%
+  filter(year == 1805) %>%
+  ggplot(aes(x = country, y = death)) +
+  geom_bar(aes(fill = country), stat = "identity") +
+  geom_text(aes(label = death), vjust = -0.5) +
+  ggtitle("Number of death 1805")
+```
+
+```{r death3}
+#Geomline
+vessel_data %>%
+  count(year, death)
+
+ggplot(data = vessel_data, aes(x = year, y = death, color = country)) +
+  geom_line() +
+  ggtitle("Number of death")
+
+#Now we animate it
+
+anim4 <- ggplot(vessel_data, aes(x = year, y = death, color = country)) +
+  geom_line() +
+  transition_reveal(year) +
+  ggtitle("Year:{round(frame_along)}") +
+  labs(x = "year", y = "number of death")
+
+anim4
+```
+
+
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
