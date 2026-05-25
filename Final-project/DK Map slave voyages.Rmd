@@ -13,7 +13,7 @@ options(repos = c(CRAN = "https://cloud.r-project.org"))
 ```
 
 ----
-# Map of the showing the Danish Trans-Atlantic slave trade
+# Map of the world showing the Danish Trans-Atlantic slave trade
 
 
 First, we install the packages necessary for creating the map
